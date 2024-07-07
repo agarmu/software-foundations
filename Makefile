@@ -1,7 +1,7 @@
 COQMFFLAGS := -R . LF
 
 
-CHAPTERS := Preface Basics Induction Lists Poly Tactics Logic IndProp Maps ProofObjects IndPrinciples Rel Imp ImpParser ImpCEvalFun Extraction Auto AltAuto Postscript Bib
+CHAPTERS := Basics Induction Lists Poly Tactics Logic IndProp Maps ProofObjects IndPrinciples Rel Imp ImpParser ImpCEvalFun Extraction Auto AltAuto Postscript Bib
 
 FILES := $(addprefix src/,$(addsuffix .v,$(CHAPTERS)))
 TESTFILES := $(addprefix test/,$(addsuffix Test.v,$(CHAPTERS)))
