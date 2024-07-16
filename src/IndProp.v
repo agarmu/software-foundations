@@ -2461,7 +2461,6 @@ Abort.
     common. *)
 Definition disjoint {X:Type} (l1:list X) (l2:list X) :=
   forall x, (In x l1 -> ~ (In x l2)) /\ (In x l2 -> ~(In x l1)).
-(* FILL IN HERE *)
 
 (** Next, use [In] to define an inductive proposition [NoDup X
     l], which should be provable exactly when [l] is a list (with
@@ -2479,8 +2478,25 @@ Inductive NoDup {X:Type} : list X -> Prop :=
 Theorem nodup_break: forall (X:Type) (l1 l2: list X),
   (NoDup (l1 ++ l2)) -> (NoDup l1) /\ (NoDup l2) /\ (disjoint l1 l2).
 Proof.
-  (** FILL IN HERE *)
+  intros X l1. induction l1 as [|h1 t1 rec].
+  intros. simpl. simpl in H. split.
+  - apply nd_empty.
+  - split.
+    * exact H.
+    * unfold disjoint. split; [intros H0 | intros _ H0]; inversion H0.
+  - intros.
+    simpl in H. inversion H. split.
+    * apply nd_sing.
+      + admit.
+      + intros contra. unfold not in H3. apply H3. apply In_app_iff. left. assumption.
+        *  specialize (rec l2). apply rec in H2. destruct H2 as [G1 [G2 G3]]. split.
+      + assumption.
+      + unfold disjoint. intros. split.
+        intros K contra.
+      
+      
 Abort.
+
 (* Do not modify the following line: *)
 Definition manual_grade_for_NoDup_disjoint_etc : option (nat*string) := None.
 (** [] *)
@@ -2590,6 +2606,15 @@ Proof.
   exact H.
 Qed.
 
+Lemma esub_trans : forall T (p:T) l1 l2,
+  esub l1 l2 ->
+  In p l1 ->
+  In p l2.
+Proof.
+  intros T p [| t l1] l2 H Hpl1; inversion Hpl1;
+    [subst t |]; apply H; assumption.
+Qed.
+
 Lemma esub_appl: forall (T:Type) (l1 l2: list T), esub l1 (l2 ++ l1).
 Proof.
   unfold esub. intros.
@@ -2617,6 +2642,16 @@ Proof.
   apply H in Hv.
   apply in_l_p.
   assumption.
+Qed.
+
+Lemma esub_ll_pl : forall T (p:T) l1 l2,
+  esub l1 l2 ->
+  In p l2 ->
+  esub (p::l1) l2.
+Proof.
+  intros * H Hp x Hx.
+  destruct Hx as [Hx | Hx]; [subst; assumption |].
+  apply (esub_trans _ x l1) in H; assumption.
 Qed.
 
 (** A proposition of the form [esub (x::l1) l2] is equivalent to [In x l2 /\ esub l1 l2]. *)
@@ -2908,7 +2943,7 @@ Lemma app_exists : forall (s : string) re0 re1,
 Proof.
   intros.
   split.
-  - intros. inversion H. exists s1, s2. split.
+  - intros. inversion H. exists s4, s5. split.
     * reflexivity.
     * split. apply H3. apply H4.
   - intros [ s0 [ s1 [ Happ [ Hmat0 Hmat1 ] ] ] ].
@@ -2930,7 +2965,26 @@ Lemma app_ne : forall (a : ascii) s re0 re1,
   ([ ] =~ re0 /\ a :: s =~ re1) \/
   exists s0 s1, s = s0 ++ s1 /\ a :: s0 =~ re0 /\ s1 =~ re1.
 Proof.
-  (* FILL IN HERE *) Admitted.
+  intros a s re0 re1.
+  split.
+  - intros. apply app_exists in H. destruct H as [k1 [k2 [H0 [H1 H2]]]].
+    destruct k1 as [|h1 t1].
+    * simpl in H0. left. split. exact H1. rewrite H0. exact H2.
+    * simpl in H0. inversion H0. right.
+      exists t1, k2. split. reflexivity. split.
+      exact H1.
+      exact H2.
+  - intros. destruct H as [H|H].
+    * destruct H as [H0 H1].
+      assert (a :: s = [] ++ (a :: s)) by reflexivity.
+      rewrite H. apply MApp; assumption.
+    * destruct H as [s0 [s1 [H0 [H1 H2]]]].
+      rewrite H0.
+      assert (a :: s0 ++ s1 = (a :: s0) ++ s1) by reflexivity.
+      rewrite H. apply MApp; assumption.
+Qed.
+
+
 (** [] *)
 
 (** [s] matches [Union re0 re1] iff [s] matches [re0] or [s] matches [re1]. *)
@@ -2966,7 +3020,28 @@ Lemma star_ne : forall (a : ascii) s re,
   a :: s =~ Star re <->
   exists s0 s1, s = s0 ++ s1 /\ a :: s0 =~ re /\ s1 =~ Star re.
 Proof.
-  (* FILL IN HERE *) Admitted.
+  intros a s re. split.
+  - intros H. remember (Star re) as re' eqn:H0. remember (a::s) as s' eqn:H1.
+    induction H.
+    + inversion H0.
+    + inversion H0.
+    + inversion H0.
+    + inversion H0.
+    + inversion H0.
+    + inversion H1.
+    + destruct s4 as [|h s1].
+      * inversion H0. rewrite H4 in *.
+        apply IHexp_match2 in H0. exact H0.
+        simpl in H1. exact H1.
+      * inversion H1. rewrite H4 in *.
+        inversion H0. rewrite H6 in *.
+        exists s1, s5. split; try reflexivity.
+        split; assumption.
+  - intros. destruct H as [s0 [s1 [H0 [H1 H2]]]].
+    rewrite H0. apply (MStarApp (a :: s0)); assumption.
+Qed.
+
+
 (** [] *)
 
 (** The definition of our regex matcher will include two fixpoint
@@ -2980,8 +3055,16 @@ Definition refl_matches_eps m :=
 
     Complete the definition of [match_eps] so that it tests if a given
     regex matches the empty string: *)
-Fixpoint match_eps (re: reg_exp ascii) : bool
-  (* REPLACE THIS LINE WITH ":= _your_definition_ ." *). Admitted.
+Fixpoint match_eps (re: reg_exp ascii) : bool :=
+  match re with
+  | EmptyStr => true
+  | App x y => (match_eps x) && (match_eps y)
+  | Union x y => (match_eps x) || (match_eps y)
+  | Star _ => true
+  | _ => false
+  end.
+                                                             
+
 (** [] *)
 
 (** **** Exercise: 3 stars, standard, optional (match_eps_refl)
@@ -2989,9 +3072,41 @@ Fixpoint match_eps (re: reg_exp ascii) : bool
     Now, prove that [match_eps] indeed tests if a given regex matches
     the empty string.  (Hint: You'll want to use the reflection lemmas
     [ReflectT] and [ReflectF].) *)
+Lemma app_nil_so_comp_nil: forall (X:Type) (l1 l2 : list X), l1 ++ l2 = [] -> l1 = [] /\ l2 = [].
+Proof.
+  intros. generalize dependent l2. destruct l1.
+  - intros. simpl in H. split. reflexivity. assumption.
+  - intros. simpl in H. inversion H.
+Qed.
+  
 Lemma match_eps_refl : refl_matches_eps match_eps.
 Proof.
-  (* FILL IN HERE *) Admitted.
+  intros re. apply iff_reflect. split.
+  - intros H. remember [] as s.
+    induction H.
+    + reflexivity.
+    + inversion Heqs.
+    + simpl. apply app_nil_so_comp_nil in Heqs as [G1 G2].
+      apply IHexp_match1 in G1.
+      apply IHexp_match2 in G2.
+      rewrite G1. rewrite G2. reflexivity.
+    + apply IHexp_match in Heqs. simpl. rewrite Heqs. reflexivity.
+    + apply IHexp_match in Heqs. simpl. rewrite Heqs.
+      destruct (match_eps re1); reflexivity.
+    + reflexivity.
+    + reflexivity.
+  - intros H. induction re.
+    + inversion H.
+    + constructor.
+    + inversion H.
+    + simpl in H. apply andb_true_iff in H. destruct H as [H0 H1].
+      apply IHre1 in H0. apply IHre2 in H1. apply (MApp []); assumption.
+    + simpl in H. apply orb_true_iff in H. destruct H as [H|H].
+      * apply IHre1 in H. apply MUnionL. exact H.
+      * apply IHre2 in H. apply MUnionR. exact H.
+    + constructor.
+Qed.
+
 (** [] *)
 
 (** We'll define other functions that use [match_eps]. However, the
@@ -3018,8 +3133,23 @@ Definition derives d := forall a re, is_der re a (d a re).
     Define [derive] so that it derives strings. One natural
     implementation uses [match_eps] in some cases to determine if key
     regex's match the empty string. *)
-Fixpoint derive (a : ascii) (re : reg_exp ascii) : reg_exp ascii
-  (* REPLACE THIS LINE WITH ":= _your_definition_ ." *). Admitted.
+
+
+
+Fixpoint derive (a : ascii) (re : reg_exp ascii) : reg_exp ascii :=
+  match re with
+  | EmptySet => EmptySet
+  | EmptyStr => EmptySet
+  | Char x => if ascii_dec a x then EmptyStr else EmptySet
+  | App x y => if (match_eps x)
+              then Union (derive a y) (App (derive a x) y)
+              else App (derive a x) y
+  | Union x y => Union (derive a x) (derive a y)
+  | Star x => App (derive a x) (Star x)
+  end.
+
+                
+
 (** [] *)
 
 (** The [derive] function should pass the following tests. Each test
@@ -3032,45 +3162,38 @@ Example d := ascii_of_nat 100.
 
 (** "c" =~ EmptySet: *)
 Example test_der0 : match_eps (derive c (EmptySet)) = false.
-Proof.
-  (* FILL IN HERE *) Admitted.
+Proof. reflexivity. Qed.
 
 (** "c" =~ Char c: *)
 Example test_der1 : match_eps (derive c (Char c)) = true.
-Proof.
-  (* FILL IN HERE *) Admitted.
+Proof. reflexivity. Qed.
+
 
 (** "c" =~ Char d: *)
 Example test_der2 : match_eps (derive c (Char d)) = false.
-Proof.
-  (* FILL IN HERE *) Admitted.
+Proof. reflexivity. Qed.
 
 (** "c" =~ App (Char c) EmptyStr: *)
 Example test_der3 : match_eps (derive c (App (Char c) EmptyStr)) = true.
-Proof.
-  (* FILL IN HERE *) Admitted.
+Proof. reflexivity. Qed.
 
 (** "c" =~ App EmptyStr (Char c): *)
 Example test_der4 : match_eps (derive c (App EmptyStr (Char c))) = true.
-Proof.
-  (* FILL IN HERE *) Admitted.
+Proof. reflexivity. Qed.
 
 (** "c" =~ Star c: *)
 Example test_der5 : match_eps (derive c (Star (Char c))) = true.
-Proof.
-  (* FILL IN HERE *) Admitted.
+Proof. reflexivity. Qed.
 
 (** "cd" =~ App (Char c) (Char d): *)
 Example test_der6 :
   match_eps (derive d (derive c (App (Char c) (Char d)))) = true.
-Proof.
-  (* FILL IN HERE *) Admitted.
+Proof. reflexivity. Qed.
 
 (** "cd" =~ App (Char d) (Char c): *)
 Example test_der7 :
   match_eps (derive d (derive c (App (Char d) (Char c)))) = false.
-Proof.
-  (* FILL IN HERE *) Admitted.
+Proof. reflexivity. Qed.
 
 (** **** Exercise: 4 stars, standard, optional (derive_corr)
 
@@ -3095,7 +3218,11 @@ Proof.
     [Prop]'s naturally using [intro] and [destruct]. *)
 Lemma derive_corr : derives derive.
 Proof.
-  (* FILL IN HERE *) Admitted.
+Admitted.
+
+
+    
+    
 (** [] *)
 
 (** We'll define the regex matcher using [derive]. However, the only
@@ -3134,4 +3261,4 @@ Proof.
   (* FILL IN HERE *) Admitted.
 (** [] *)
 
-(* 2023-12-29 17:12 *)
+(* 2023-
