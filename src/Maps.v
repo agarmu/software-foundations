@@ -188,7 +188,9 @@ Proof. reflexivity. Qed.
 Lemma t_apply_empty : forall (A : Type) (x : string) (v : A),
   (_ !-> v) x = v.
 Proof.
-  (* FILL IN HERE *) Admitted.
+  intros A x v.
+  reflexivity.
+Qed.
 (** [] *)
 
 (** **** Exercise: 2 stars, standard, optional (t_update_eq)
@@ -200,7 +202,11 @@ Proof.
 Lemma t_update_eq : forall (A : Type) (m : total_map A) x v,
   (x !-> v ; m) x = v.
 Proof.
-  (* FILL IN HERE *) Admitted.
+  intros.
+  unfold t_update.
+  assert ((x =? x)%string = true) by apply String.eqb_refl.
+  rewrite H. reflexivity.
+Qed.
 (** [] *)
 
 (** **** Exercise: 2 stars, standard, optional (t_update_neq)
@@ -213,7 +219,15 @@ Theorem t_update_neq : forall (A : Type) (m : total_map A) x1 x2 v,
   x1 <> x2 ->
   (x1 !-> v ; m) x2 = m x2.
 Proof.
-  (* FILL IN HERE *) Admitted.
+  intros A m x1 x2 v H.
+  unfold t_update.
+  remember (String.eqb x1 x2) as b.
+  assert (reflect (x1 = x2) b).
+  - rewrite Heqb. apply eqb_spec.
+  - destruct H0.
+    * exfalso. apply H. exact e.
+    * reflexivity.
+ Qed.
 (** [] *)
 
 (** **** Exercise: 2 stars, standard, optional (t_update_shadow)
@@ -227,7 +241,12 @@ Proof.
 Lemma t_update_shadow : forall (A : Type) (m : total_map A) x v1 v2,
   (x !-> v2 ; x !-> v1 ; m) = (x !-> v2 ; m).
 Proof.
-  (* FILL IN HERE *) Admitted.
+  intros A m x v1 v2.
+  apply functional_extensionality.
+  intros.
+  unfold t_update.
+  destruct (String.eqb x x0); reflexivity.
+Qed.
 (** [] *)
 
 (** **** Exercise: 2 stars, standard (t_update_same)
@@ -244,7 +263,15 @@ Proof.
 Theorem t_update_same : forall (A : Type) (m : total_map A) x,
   (x !-> m x ; m) = m.
 Proof.
-  (* FILL IN HERE *) Admitted.
+  intros A m x.
+  apply functional_extensionality.
+  intros.
+  unfold t_update.
+  assert (reflect (x = x0) (String.eqb x x0)) by apply eqb_spec.
+  destruct (String.eqb x x0).
+  - inversion H. rewrite H0. reflexivity.
+  - reflexivity.
+Qed.
 (** [] *)
 
 (** **** Exercise: 3 stars, standard, especially useful (t_update_permute)
@@ -260,7 +287,17 @@ Theorem t_update_permute : forall (A : Type) (m : total_map A)
   =
   (x2 !-> v2 ; x1 !-> v1 ; m).
 Proof.
-  (* FILL IN HERE *) Admitted.
+  intros A m v1 v2 x1 x2 H.
+  unfold t_update.
+  apply functional_extensionality.
+  intros x.
+  assert (reflect (x1 = x) (String.eqb x1 x)) by apply eqb_spec.
+  assert (reflect (x2 = x) (String.eqb x2 x)) by apply eqb_spec.
+  remember (String.eqb x1 x) as k1.
+  remember (String.eqb x2 x) as k2.
+  destruct k1, k2; inversion H0; inversion H1; try reflexivity.
+  - exfalso. apply H. rewrite H2. exact H3.
+Qed. 
 (** [] *)
 
 (* ################################################################# *)
