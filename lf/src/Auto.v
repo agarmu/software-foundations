@@ -677,6 +677,7 @@ Proof.
     proof obligations but along the way we've put some aside to be
     done later, and we have not finished those.  Trying to close the
     proof with [Qed] would yield an error. (Try it!) *)
+
 Abort.
 
 (** An additional constraint is that existential variables cannot be
@@ -737,7 +738,7 @@ Lemma silly2_eauto : forall (P : nat -> nat -> Prop) (Q : nat -> Prop),
   (forall x y : nat, P x y -> Q x) ->
   Q 42.
 Proof.
-  intros P Q HP HQ. destruct HP as [y HP']. eauto.
+  intros P Q [y HP'] HQ. eauto.
 Qed.
 
 (* 2023-12-29 17:12 *)

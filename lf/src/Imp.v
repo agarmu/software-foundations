@@ -463,13 +463,27 @@ Admitted.
     it is sound.  Use the tacticals we've just seen to make the proof
     as short and elegant as possible. *)
 
-Fixpoint optimize_0plus_b (b : bexp) : bexp
-  (* REPLACE THIS LINE WITH ":= _your_definition_ ." *). Admitted.
+Fixpoint optimize_0plus_b (b : bexp) : bexp :=
+  match b with
+  | BEq a1 a2 => BEq (optimize_0plus a1) (optimize_0plus a2)
+  | BNeq a1 a2 => BNeq (optimize_0plus a1) (optimize_0plus a2)
+  | BLe a1 a2 => BLe (optimize_0plus a1) (optimize_0plus a2)
+  | BGt a1 a2 => BGt (optimize_0plus a1) (optimize_0plus a2)
+  | BAnd b1 b2 => BAnd (optimize_0plus_b b1) (optimize_0plus_b b2)
+  | BNot b' => BNot (optimize_0plus_b b')
+  | _ => b
+end.
 
 Theorem optimize_0plus_b_sound : forall b,
   beval (optimize_0plus_b b) = beval b.
 Proof.
-  (* FILL IN HERE *) Admitted.
+  induction b;
+    simpl;
+    try repeat rewrite optimize_0plus_sound; try reflexivity.
+  - rewrite IHb. reflexivity.
+  - rewrite IHb1. rewrite IHb2. reflexivity.
+Qed.
+
 (** [] *)
 
 (** **** Exercise: 4 stars, standard, optional (optimize)
@@ -486,6 +500,45 @@ Proof.
 
     [] *)
 
+Fixpoint optimize_bexpr_tf (b:bexp) : bexp :=
+  match b with
+  | BAnd b1 b2 => let b1' := optimize_bexpr_tf b1 in
+                 let b2' := optimize_bexpr_tf b2 in
+                 match b1' with
+                 | BTrue => b2'
+                 | BFalse => BFalse
+                 | _ => match b2' with
+                       | BTrue => b1'
+                       | BFalse => BFalse
+                       | _ => BAnd b1' b2'
+                       end
+                 end
+  | BNot x1 => let x2 := optimize_bexpr_tf x1 in
+              match x2 with
+              | BTrue => BFalse
+              | BFalse => BTrue
+              | _ => BNot x2
+              end
+  | _ => b
+  end.
+
+
+Theorem optimize_bexpr_tf_sound: forall b,
+    beval (optimize_bexpr_tf b) = beval b.
+Proof.
+  induction b; try reflexivity.
+  - assert (forall b, beval (BNot b) = negb (beval b)) by reflexivity.
+    rewrite H. simpl.
+    destruct (optimize_bexpr_tf b);
+      simpl; simpl in IHb;
+      rewrite <- IHb; reflexivity.
+  - assert (forall x y, beval (BAnd x y) = (beval x) && beval y) by reflexivity.
+    rewrite H. simpl.
+    destruct (optimize_bexpr_tf b1), (optimize_bexpr_tf b2);
+      try rewrite <- IHb1; try rewrite <- IHb2; simpl;
+      try rewrite andb_true_r; try rewrite andb_false_r;
+      reflexivity.
+Qed.
 (* ================================================================= *)
 (** ** Defining New Tactics *)
 
@@ -524,7 +577,7 @@ Ltac invert H :=
     inversion on evidence and constructors, rewrite with the generated
     equations, and remove the redundant hypothesis at the end. *)
 
-Lemma invert_example1: forall {a b c: nat}, [a ;b] = [a;c] -> b = c.
+Lemma invert_example1: forall {a b c: nat}, [a;b] = [a;c] -> b = c.
   intros.
   invert H.
   reflexivity.
@@ -633,6 +686,30 @@ Inductive aevalR : aexp -> nat -> Prop :=
       aevalR e2 n2 ->
       aevalR (AMult e1 e2) (n1 * n2).
 
+Lemma both_eval_same: forall (e:aexp) (n:nat),
+    aevalR e n <-> aeval e = n.
+Proof.
+  split.
+  - intros. induction H; subst; simpl; reflexivity.
+  - generalize dependent n. induction e; intros.
+    + simpl in H. subst. constructor.
+    + simpl in H.
+      remember (aeval e1) as n1.
+      remember (aeval e2) as n2.
+      rewrite <- H.
+      apply E_APlus.
+      * apply (IHe1 _ (eq_refl _)).
+      * apply (IHe2 _ (eq_refl _)).
+   + simpl in H. subst.
+     constructor.
+     * apply IHe1. reflexivity.
+     * apply IHe2. reflexivity.
+   + simpl in H. subst.
+     constructor.
+     * apply IHe1. reflexivity.
+     * apply IHe2. reflexivity.
+Qed.
+
 Module HypothesisNames.
 
 (** A small notational aside. We could also write the definition of
@@ -678,23 +755,23 @@ End aevalR_first_try.
 
 Reserved Notation "e '==>' n" (at level 90, left associativity).
 
-Inductive aevalR : aexp -> nat -> Prop :=
-  | E_ANum (n : nat) :
+Inductive aevalr : aexp -> nat -> Prop :=
+  | e_ANum (n : nat) :
       (ANum n) ==> n
-  | E_APlus (e1 e2 : aexp) (n1 n2 : nat) :
+  | e_APlus (e1 e2 : aexp) (n1 n2 : nat) :
       (e1 ==> n1) ->
       (e2 ==> n2) ->
       (APlus e1 e2)  ==> (n1 + n2)
-  | E_AMinus (e1 e2 : aexp) (n1 n2 : nat) :
+  | e_AMinus (e1 e2 : aexp) (n1 n2 : nat) :
       (e1 ==> n1) ->
       (e2 ==> n2) ->
       (AMinus e1 e2) ==> (n1 - n2)
-  | E_AMult (e1 e2 : aexp) (n1 n2 : nat) :
+  | e_AMult (e1 e2 : aexp) (n1 n2 : nat) :
       (e1 ==> n1) ->
       (e2 ==> n2) ->
       (AMult e1 e2)  ==> (n1 * n2)
 
-  where "e '==>' n" := (aevalR e n) : type_scope.
+  where "e '==>' n" := (aevalr e n) : type_scope.
 
 (* ================================================================= *)
 (** ** Inference Rule Notation *)
@@ -703,8 +780,7 @@ Inductive aevalR : aexp -> nat -> Prop :=
     for [aevalR] and similar relations in the more readable graphical
     form of _inference rules_, where the premises above the line
     justify the conclusion below the line.
-
-    For example, the constructor [E_APlus]...
+    FOR example, the constructor [E_APlus]...
 
       | E_APlus : forall (e1 e2 : aexp) (n1 n2 : nat),
           aevalR e1 n1 ->
@@ -800,27 +876,27 @@ Proof.
     + (* E_ANum *)
       reflexivity.
     + (* E_APlus *)
-      rewrite IHaevalR1.  rewrite IHaevalR2.  reflexivity.
+      rewrite IHaevalr1.  rewrite IHaevalr2.  reflexivity.
     + (* E_AMinus *)
-      rewrite IHaevalR1.  rewrite IHaevalR2.  reflexivity.
+      rewrite IHaevalr1.  rewrite IHaevalr2.  reflexivity.
     + (* E_AMult *)
-      rewrite IHaevalR1.  rewrite IHaevalR2.  reflexivity.
+      rewrite IHaevalr1.  rewrite IHaevalr2.  reflexivity.
   - (* <- *)
     generalize dependent n.
     induction a;
        simpl; intros; subst.
     + (* ANum *)
-      apply E_ANum.
+      apply e_ANum.
     + (* APlus *)
-      apply E_APlus.
+      apply e_APlus.
       * apply IHa1. reflexivity.
       * apply IHa2. reflexivity.
     + (* AMinus *)
-      apply E_AMinus.
+      apply e_AMinus.
       * apply IHa1. reflexivity.
       * apply IHa2. reflexivity.
     + (* AMult *)
-      apply E_AMult.
+      apply e_AMult.
       * apply IHa1. reflexivity.
       * apply IHa2. reflexivity.
 Qed.
@@ -847,16 +923,81 @@ Qed.
     [aevalR], and prove that it is equivalent to [beval]. *)
 
 Reserved Notation "e '==>b' b" (at level 90, left associativity).
+
 Inductive bevalR: bexp -> bool -> Prop :=
-(* FILL IN HERE *)
-where "e '==>b' b" := (bevalR e b) : type_scope
+
+  (* boolean primitives *)
+
+  | e_btrue : BTrue ==>b true
+  | e_bfalse : BFalse ==>b false
+
+
+  (* boolean connectives *)
+
+  | e_not (x:bexp) (b:bool) :
+    x ==>b b -> BNot x ==>b (negb b)
+
+  | e_and (x1 x2:bexp) (b1 b2:bool) :
+    x1 ==>b b1 -> x2 ==>b b2 -> BAnd x1 x2 ==>b b1 && b2
+
+  (* arithmetic-boolean connectives *)
+
+  | e_beq (x1 x2: aexp) (v1 v2: nat) :
+    x1 ==> v1 -> x2 ==> v2 -> BEq x1 x2 ==>b (v1 =? v2)
+
+  | e_bneq (x1 x2: aexp) (v1 v2: nat) :
+    x1 ==> v1 -> x2 ==> v2 -> BNeq x1 x2 ==>b negb (v1 =? v2)
+
+  | e_ble (x1 x2: aexp) (v1 v2: nat) :
+    x1 ==> v1 -> x2 ==> v2 -> BLe x1 x2 ==>b (v1 <=? v2)
+
+  | e_bgt (x1 x2: aexp) (v1 v2: nat) :
+    x1 ==> v1 -> x2 ==> v2 -> BGt x1 x2 ==>b negb (v1 <=? v2)
+
+  where "e '==>b' b" := (bevalR e b) : type_scope
 .
+
+Lemma reflect_disj: forall (P:Prop) (b:bool),
+    reflect P b -> ~P -> b = false.
+Proof.
+  intros. apply reflect_iff in H; destruct H.
+  destruct b.
+  - exfalso. apply H0. apply H1. reflexivity.
+  - reflexivity.
+Qed.
+
+Lemma negb_swp:
+  forall x y,
+    negb x = y <-> x = negb y.
+Proof.
+  intros; split; intros; destruct x, y;
+    simpl; simpl in H; try reflexivity; symmetry; apply H.
+Qed.
 
 Lemma beval_iff_bevalR : forall b bv,
   b ==>b bv <-> beval b = bv.
 Proof.
-  (* FILL IN HERE *) Admitted.
-(** [] *)
+  split; intros H.
+  - induction H; simpl; subst; simpl;
+      try (apply aeval_iff_aevalR' in H; rewrite H);
+      try (apply aeval_iff_aevalR' in H0; rewrite H0);
+      reflexivity.
+  - generalize dependent bv; induction b; intros.
+    + subst; simpl. constructor.
+    + subst; simpl. constructor.
+    + simpl. subst. simpl. constructor; apply aeval_iff_aevalR'; reflexivity.
+    + simpl. subst. simpl. constructor; apply aeval_iff_aevalR'; reflexivity.
+    + simpl. subst. simpl. constructor; apply aeval_iff_aevalR'; reflexivity.
+    + simpl. subst. simpl. constructor; apply aeval_iff_aevalR'; reflexivity.
+    + simpl. assert (bv = negb (negb bv)).
+      * rewrite negb_involutive. reflexivity.
+      * simpl in H. apply negb_swp in H. apply IHb in H.
+        rewrite H0. constructor. exact H.
+    + simpl in H. rewrite <- H. constructor; [apply IHb1 | apply IHb2 ]; reflexivity.
+Qed.
+
+
+   (** [] *)
 
 End AExp.
 
@@ -929,7 +1070,8 @@ Inductive aexp : Type :=
   | ANum (n : nat)
   | APlus (a1 a2 : aexp)
   | AMinus (a1 a2 : aexp)
-  | AMult (a1 a2 : aexp).
+  | AMult (a1 a2 : aexp)
+.
 
 (** Again, extending [aeval] would be tricky, since now
     evaluation is _not_ a deterministic function from expressions to
@@ -1559,7 +1701,9 @@ Example ceval_example2:
     Z := 2
   ]=> (Z !-> 2 ; Y !-> 1 ; X !-> 0).
 Proof.
-  (* FILL IN HERE *) Admitted.
+ apply E_Seq with (X !-> 0); try (constructor; reflexivity).
+ apply E_Seq with (Y !-> 1; X !-> 0); try (constructor; reflexivity).
+Qed.
 (** [] *)
 
 Set Printing Implicit.
@@ -1573,15 +1717,36 @@ Check @ceval_example2.
     which you can reverse-engineer to discover the program you should
     write.  The proof of that theorem will be somewhat lengthy. *)
 
-Definition pup_to_n : com
-  (* REPLACE THIS LINE WITH ":= _your_definition_ ." *). Admitted.
+Definition pup_to_n : com := <{
+      Y := 0 ;
+      while (X > 0) do
+        Y := Y + X ;
+        X := X - 1
+      end
+  }>.
 
 Theorem pup_to_2_ceval :
   (X !-> 2) =[
     pup_to_n
   ]=> (X !-> 0 ; Y !-> 3 ; X !-> 1 ; Y !-> 2 ; Y !-> 0 ; X !-> 2).
 Proof.
-  (* FILL IN HERE *) Admitted.
+  intros.
+  unfold pup_to_n.
+  apply E_Seq with (Y !-> 0; X !-> 2); try (constructor; reflexivity).
+  apply E_WhileTrue with (X !-> 1; Y !-> 2; Y !-> 0; X !-> 2);
+    try reflexivity;
+    try (
+        apply E_Seq with (Y !-> 2; Y !-> 0; X !-> 2);
+        constructor; reflexivity
+      ).
+  apply E_WhileTrue with (X !-> 0; Y !-> 3; X !-> 1; Y !-> 2; Y !-> 0; X !-> 2);
+    try reflexivity;
+    try (
+        apply E_Seq with (Y !-> 3; X !-> 1;Y !-> 2; Y !-> 0; X !-> 2);
+        constructor; reflexivity
+    ).
+  apply E_WhileFalse. reflexivity.
+Qed.
 (** [] *)
 
 (* ================================================================= *)
@@ -1599,7 +1764,7 @@ Proof.
     In fact, this cannot happen: [ceval] _is_ a partial function: *)
 
 Theorem ceval_deterministic: forall c st st1 st2,
-     st =[ c ]=> st1  ->
+     st =[ c ]=> st1 ->
      st =[ c ]=> st2 ->
      st1 = st2.
 Proof.
